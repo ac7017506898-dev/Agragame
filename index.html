@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Agra Crush - Match 3 Game</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<style>
+body { margin: 0; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+       font-family: Arial; text-align: center; color: white; overflow: hidden; }
+#gameContainer { max-width: 400px; margin: 0 auto; padding: 10px; }
+#header { display: flex; justify-content: space-between; margin: 10px 0; font-size: 18px; font-weight: bold; }
+#board { display: grid; grid-template-columns: repeat(8, 1fr); gap: 3px;
+         background: rgba(0,0,0,0.3); padding: 5px; border-radius: 10px; margin: 10px auto; touch-action: none; }
+.candy { aspect-ratio: 1; border-radius: 8px; cursor: pointer; transition: transform 0.1s;
+         display: flex; align-items: center; justify-content: center; font-size: 24px; }
+.candy:active { transform: scale(0.9); }
+.selected { border: 3px solid #fff; box-shadow: 0 0 15px #fff; }
+.red { background: #ff4757; }
+.blue { background: #3742fa; }
+.green { background: #2ed573; }
+.yellow { background: #ffa502; }
+.purple { background: #a55eea; }
+.orange { background: #ff6348; }
+button { padding: 12px 25px; font-size: 16px; background: #ff6b6b; border: none;
+         color: white; border-radius: 25px; margin: 5px; }
+#moves { color: #ffeaa7; }
+</style>
+</head>
+<body>
+<div id="gameContainer">
+    <h1>Agra Crush 💎</h1>
+    <div id="header">
+        <div>Score: <span id="score">0</span></div>
+        <div>Moves: <span id="moves">20</span></div>
+        <div>Level: <span id="level">1</span></div>
+    </div>
+    <div id="board"></div>
+    <button onclick="newGame()">New Game</button>
+    <p>Swipe karke 3 same color milao!</p>
+</div>
+<script>
+const BOARD_SIZE = 8;
+const CANDIES = ['red', 'blue', 'green', 'yellow', 'purple', 'orange'];
+const EMOJIS = { red: '🍎', blue: '💎', green: '🍀', yellow: '⭐', purple: '🍇', orange: '🍊' };
+let board = [];
+let score = 0;
+let moves = 20;
+let level = 1;
+let selectedCandy = null;
+let isSwapping = false;
+let startX, startY, startTime;
+function createBoard() {
+    const boardEl = document.getElementById('board');
+    boardEl.innerHTML = '';
+    board = [];
+    for (let i = 0; i < BOARD_SIZE; i++) {
+        board[i] = [];
+        for (let j = 0; j < BOARD_SIZE; j++) {
+            let candyType;
+            do {
+                candyType = CANDIES[Math.floor(Math.random() * CANDIES.length)];
+            } while (isMatch(i, j, candyType));
+            board[i][j] = candyType;
+            const candyEl = document.createElement('div');
+            candyEl.className = `candy ${candyType}`;
+            candyEl.innerHTML = EMOJIS[candyType];
+            candyEl.dataset.row = i;
+            candyEl.dataset.col = j;
+            boardEl.appendChild(candyEl);
+        }
+    }
+    updateDisplay();
+}
+function isMatch(row, col, type) {
+    let count = 1;
+    for (let j = col - 1; j >= 0 && board[row][j] === type; j--) count++;
+    for (let j = col + 1; j < BOARD_SIZE && board[row][j] === type; j++) count++;
+    if (count >= 3) return true;
+    count = 1;
+    for (let i = row - 1; i >= 0 && board[i][col] === type; i++) count++;
+    for (let i = row + 1; i < BOARD_SIZE && board[i][col] === type; i++) count++;
+    return count >= 3;
+}
+function swapCandies(r1, c1, r2, c2) {
+    isSwapping = true;
+    moves--;
+    [board[r1][c1], board[r2][c2]] = [board[r2][c2], board[r1][c1]];
+    if (checkMatches()) {
+        updateDisplay();
+        setTimeout(() => {
+            dropCandies();
+            setTimeout(() => {
+                fillBoard();
+                isSwapping = false;
+                if (moves <= 0) endGame();
+            }, 300);
+        }, 300);
+    } else {
+        [board[r1][c1], board[r2][c2]] = [board[r2][c2], board[r1][c1]];
+        moves++;
+        isSwapping = false;
+    }
+    updateDisplay();
+}
+function checkMatches() {
+    let hasMatch = false;
+    const toRemove = [];
+    for (let i = 0; i < BOARD_SIZE; i++) {
+        for (let j = 0; j < BOARD_SIZE - 2; j++) {
+            if (board[i][j] && board[i][j] === board[i][j+1] && board[i][j] === board[i][j+2]) {
+                let k = j;
+                while (k < BOARD_SIZE && board[i][k] === board[i][j]) {
+                    toRemove.push([i, k]);
+                    k++;
+                }
+                hasMatch = true;
+            }
+        }
+    }
+    for (let j = 0; j < BOARD_SIZE; j++) {
+        for (let i = 0; i < BOARD_SIZE - 2; i++) {
+            if (board[i][j] && board[i][j] === board[i+1][j] && board[i][j] === board[i+2][j]) {
+                let k = i;
+                while (k < BOARD_SIZE && board[k][j] === board[i][j]) {
+                    toRemove.push([k, j]);
+                    k++;
+                }
+                hasMatch = true;
+            }
+        }
+    }
+    toRemove.forEach(([i, j]) => {
+        if (board[i][j]) {
+            score += 10;
+            board[i][j] = null;
+        }
+    });
+    return hasMatch;
+}
+function dropCandies() {
+    for (let j = 0; j < BOARD_SIZE; j++) {
+        let emptySpots = 0;
+        for (let i = BOARD_SIZE - 1; i >= 0; i--) {
+            if (board[i][j] === null) {
+                emptySpots++;
+            } else if (emptySpots > 0) {
+                board[i + emptySpots][j] = board[i][j];
+                board[i][j] = null;
+            }
+        }
+    }
+    renderBoard();
+}
+function fillBoard() {
+    for (let i = 0; i < BOARD_SIZE; i++) {
+        for (let j = 0; j < BOARD_SIZE; j++) {
+            if (board[i][j] === null) {
+                board[i][j] = CANDIES[Math.floor(Math.random() * CANDIES.length)];
+            }
+        }
+    }
+    renderBoard();
+    if (checkMatches()) {
+        setTimeout(() => {
+            dropCandies();
+            setTimeout(fillBoard, 300);
+        }, 300);
+    }
+}
+function renderBoard() {
+    const candies = document.querySelectorAll('.candy');
+    candies.forEach((candy, idx) => {
+        const row = Math.floor(idx / BOARD_SIZE);
+        const col = idx % BOARD_SIZE;
+        const type = board[row][col];
+        candy.className = `candy ${type}`;
+        candy.innerHTML = EMOJIS[type];
+        candy.dataset.row = row;
+        candy.dataset.col = col;
+    });
+}
+function updateDisplay() {
+    document.getElementById('score').innerText = score;
+    document.getElementById('moves').innerText = moves;
+    document.getElementById('level').innerText = level;
+}
+function newGame() {
+    score = 0;
+    moves = 20 + level * 2;
+    createBoard();
+}
+function endGame() {
+    setTimeout(() => {
+        alert(`Game Over! Score: ${score}\nLevel ${level} complete hua to next level!`);
+        if (score >= level * 500) level++;
+        newGame();
+    }, 500);
+}
+document.getElementById('board').addEventListener('touchstart', e => {
+    const touch = e.touches[0];
+    startX = touch.clientX;
+    startY = touch.clientY;
+    startTime = Date.now();
+}, {passive: true});
+document.getElementById('board').addEventListener('touchend', e => {
+    const touch = e.changedTouches[0];
+    const dx = touch.clientX - startX;
+    const dy = touch.clientY - startY;
+    const time = Date.now() - startTime;
+    if (Math.abs(dx) < 20 && Math.abs(dy) < 20 || time > 500) return;
+    const candy = document.elementFromPoint(startX, startY);
+    if (!candy ||!candy.classList.contains('candy')) return;
+    const row = parseInt(candy.dataset.row);
+    const col = parseInt(candy.dataset.col);
+    let newRow = row;
+    let newCol = col;
+    if (Math.abs(dx) > Math.abs(dy)) {
+        newCol += dx > 0? 1 : -1;
+    } else {
+        newRow += dy > 0? 1 : -1;
+    }
+    if (newRow >= 0 && newRow < BOARD_SIZE && newCol >= 0 && newCol < BOARD_SIZE) {
+        swapCandies(row, col, newRow, newCol);
+    }
+}, {passive: true});
+newGame();
+</script>
+</body>
+</html>
